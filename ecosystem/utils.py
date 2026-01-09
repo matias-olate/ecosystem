@@ -171,21 +171,6 @@ def get_fva_from_batch_files(eco, file_dir,name_scenario,name_community_model, b
     return fva 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # Funciones para clusterizar puntos
 
 def getHIERARCHICALclusters(dvector,k=20,lmethod='ward',criterion='maxclust', **kwards):

@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 INFEASIBLE = -1000.0
 
-QUALITATIVE_DICT = {
+CATEGORY_DICT = {
     -3.0: '-', 
     -2.0: '--',
     -1.0: '-0',
@@ -69,7 +69,7 @@ class EcosystemAnalyze():
         self.fva_reactions: list[str]           = []                # public
         self.fva_results: np.ndarray            = np.array([])
         self.qFCA = None
-        self.qualitative_dict: dict[float, str] = QUALITATIVE_DICT
+        self.category_dict: dict[float, str] = CATEGORY_DICT
 
         self.coupled_rxns: dict[str, dict]      = {}      
         self.member_blocked: dict[str, list]    = {}

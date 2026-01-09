@@ -93,19 +93,20 @@ class EcosystemClustering():
         # SpectralClustering 
        
         if method == 'hierarchical':
-            n_clusters, clusters = getHIERARCHICALclusters(dvector,**kwargs)
+            n_clusters, clusters = get_hierarchical_clusters(dvector,**kwargs)
         elif method == 'dbscan':
-            n_clusters, clusters = getDBSCANclusters(dmatrix,**kwargs)  
+            n_clusters, clusters = get_DBSCAN_clusters(dmatrix,**kwargs)  
         elif method == 'optics':
-            n_clusters, clusters = getOPTICSclusters(dmatrix,**kwargs)
+            n_clusters, clusters = get_OPTICS_clusters(dmatrix,**kwargs)
         elif method == 'SpectralClustering':
-            n_clusters, clusters = getSCclusters(dmatrix,**kwargs)          
+            n_clusters, clusters = get_SC_clusters(dmatrix,**kwargs)          
         elif method == 'AffinityPropagation':
-            n_clusters, clusters = getAPclusters(dmatrix, **kwargs)
+            n_clusters, clusters = get_AP_clusters(dmatrix, **kwargs)
         else:
             raise ValueError(f"Unknown method: {method}")
         
-        print("Done!")    
+
+        print(f"Done! n_clusters: {n_clusters}, clusters: {clusters}")    
         
         return n_clusters, clusters
 
@@ -147,10 +148,11 @@ class EcosystemClustering():
             raise ValueError(f"Unknown vector: {vector}")
         
         vector_df = vector_df.astype('int32')
-        
+        #vector_df.head(200)
         cluster_ids = np.arange(1, self.grid_n_clusters + 1)
+        #print(f"cluster_ids: {cluster_ids}, grid_clusters: {self.grid_clusters}")
         cluster_dfs = [vector_df[self.grid_clusters == cluster_id] for cluster_id in cluster_ids]
-  
+        print(f"cluster_dfs len: {len(cluster_dfs)}")
         representatives_list = [cluster_df.apply(self._get_representative_qualitative_values, 
                                                  threshold=threshold) for cluster_df in cluster_dfs]
         
@@ -162,7 +164,7 @@ class EcosystemClustering():
             representatives = representatives[changing_filter]
         
         if convert:
-            representatives = representatives.replace(self.ecosystem.analyze.qualitative_dict)
+            representatives = representatives.replace(self.ecosystem.analyze.category_dict)
 
         return representatives
 
@@ -188,62 +190,55 @@ class EcosystemClustering():
         return comparative_df
     
 
-    # NO SE USA EN NINGUN MODULO    
-    @staticmethod
-    def plot_cluster_distribution(clusters_df, cmap='Accent',figsize=(10,5)):
-        cl_columns = list(clusters_df)
-        cat_percents_dict = dict()
-        nreactions = clusters_df.shape[0]
-        nan_rep = 100.0
-        #1. Change nan to additional category 'variable'
-        df2 = clusters_df.fillna(nan_rep)
-        
-        
-        for c in cl_columns:
-            vc = df2[c].value_counts()
+    def plot_cluster_distribution(self, clusters_df: pd.DataFrame, cmap: str = 'Accent', figsize: tuple[int, int] = (10,5)) -> pd.DataFrame:
+        """Plot the distribution of qualitative reaction categories per cluster.
+
+        Each column in `clusters_df` is interpreted as a cluster and each row as a
+        reaction category assignment. NaN values are treated as an additional
+        'variable' category. Outputs a dataframe contaning the percentage of reactions per category for each cluster.
+        """
+        cluster_columns = list(clusters_df)
+        n_reactions = clusters_df.shape[0]
+
+        nan_rep = 100.0 # Change nan to additional category 'variable'
+        filled_clusters_df = clusters_df.fillna(nan_rep)
+
+        category_percents_dict = dict()
+
+        for category in cluster_columns:
+            vc = filled_clusters_df[category].value_counts()
+            vc = 100 * vc/n_reactions # to percentages
+            category_percents_dict[category] = vc.to_dict()   
             
-            vc = 100 * vc/nreactions #to percentages
-            cat_percents_dict[c] =  vc.to_dict()   
-            
-        cat_percents = pd.DataFrame.from_dict(cat_percents_dict, orient='index')
-        cat_percents.fillna(0, inplace=True)
-        
-        cat_dict = {-3.0: '-',
-                    -2.0: '--',
-                    -1.0: '-0',
-                     1.0: '0+',
-                     0.0: '0',
-                     2.0: '++',
-                     3.0: '-+',
-                     4.0: 'err',
-                     5.0: '+',
-                     100.0: 'var'}
-        
-        cat_percents.rename(columns = cat_dict, inplace=True)
-        #plot
-        ax = cat_percents.plot.barh(stacked=True, cmap=cmap,figsize=figsize)
-        ax.legend(loc='center left',bbox_to_anchor=(1.0, 0.5),title='reaction category')
+        category_percents = pd.DataFrame.from_dict(category_percents_dict, orient='index')
+        category_percents.fillna(0, inplace=True)
+        category_percents.rename(columns = self.ecosystem.analyze.category_dict, inplace=True)
+
+        # plot
+        ax = category_percents.plot.barh(stacked=True, cmap=cmap, figsize=figsize)
+        ax.legend(loc='center left', bbox_to_anchor=(1.0, 0.5), title='reaction category')
         ax.xaxis.set_major_formatter(mtick.PercentFormatter())
         ax.set_ylabel('clusters')
         ax.set_xlabel('reactions')
 
-        return cat_percents 
+        return category_percents 
     
-
 
 # ======================================================= CLUSTER FUNCTIONS =======================================================
 
 
-def getHIERARCHICALclusters(dvector: np.ndarray, k: int = 20, lmethod: str = 'ward', 
+def get_hierarchical_clusters(dvector: np.ndarray, k: int = 20, lmethod: str = 'ward', 
                             criterion: str= 'maxclust', **kwards) -> tuple[int, np.ndarray]:
     row_linkage = hierarchy.linkage(dvector, method=lmethod)
     clusters = fcluster(row_linkage, k, criterion=criterion)
+
+    k = len(np.unique(clusters))
 
     return k, clusters # clusters are indexed from 1
 
 
 # retorna un vector de clusters 0-indexados
-def getDBSCANclusters(dmatrix: np.ndarray, eps: float = 0.05, 
+def get_DBSCAN_clusters(dmatrix: np.ndarray, eps: float = 0.05, 
                       min_samples: int = 5, **kwards) -> tuple[int, np.ndarray]: 
     
     # eps : 
@@ -264,7 +259,7 @@ def getDBSCANclusters(dmatrix: np.ndarray, eps: float = 0.05,
     return k, clusters # clusters are indexed from 0, includes outliers as -1
     
 
-def getOPTICSclusters(dmatrix: np.ndarray, max_eps: float = 0.05, 
+def get_OPTICS_clusters(dmatrix: np.ndarray, max_eps: float = 0.05, 
                       min_samples: int = 5, **kwards) -> tuple[int, np.ndarray]:
     
     optics = OPTICS(max_eps = max_eps, min_samples = min_samples,metric='precomputed')
@@ -279,7 +274,7 @@ def getOPTICSclusters(dmatrix: np.ndarray, max_eps: float = 0.05,
 AssignLabels = Literal["kmeans", "discretize", "cluster_qr"]
 
 
-def getSCclusters(dmatrix: np.ndarray, assign_labels: AssignLabels = "discretize",
+def get_SC_clusters(dmatrix: np.ndarray, assign_labels: AssignLabels = "discretize",
                   random_state: int = 0, k: int = 20, delta: float = 0.2, 
                   **kwards) -> tuple[int, np.ndarray]:
     assert assign_labels in ['kmeans', 'discretize', 'cluster_qr']
@@ -294,7 +289,7 @@ def getSCclusters(dmatrix: np.ndarray, assign_labels: AssignLabels = "discretize
     return k, clusters # clusters are indexed from 0
 
 
-def getAPclusters(dmatrix: np.ndarray, **kwards) -> tuple[int, np.ndarray]:
+def get_AP_clusters(dmatrix: np.ndarray, **kwards) -> tuple[int, np.ndarray]:
 
     af = AffinityPropagation(**kwards)
     clusters = af.fit_predict(dmatrix) # np.ndarray
